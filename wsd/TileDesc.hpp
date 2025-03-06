@@ -150,9 +150,7 @@ public:
         return !(*this == other);
     }
 
-    // Sort tiles, so they are arranged as ttb rows with ltr cells within rows,
-    // with previews at the end.
-    bool operator<(const TileDesc& other) const
+    bool compareAsAtTilePos(const TileDesc& other, int tilePosX, int tilePosY) const
     {
         return std::tie(_canonicalViewId, _id,
                         _mode, _part,
@@ -163,7 +161,14 @@ public:
                         other._mode, other._part,
                         other._height, other._width,
                         other._tileHeight, other._tileWidth,
-                        other._tilePosY, other._tilePosX);
+                        tilePosY, tilePosX);
+    }
+
+    // Sort tiles, so they are arranged as ttb rows with ltr cells within rows,
+    // with previews at the end.
+    bool operator<(const TileDesc& other) const
+    {
+        return compareAsAtTilePos(other, other._tilePosX, other._tilePosY);
     }
 
     // used to cache a hash of the key elements compared in ==
@@ -259,30 +264,6 @@ public:
             return false;
         }
         return true;
-    }
-
-    bool onSameRow(const TileDesc& other) const
-    {
-        if (!sameTileCombineParams(other))
-            return false;
-
-        return other.getTilePosY() + other.getTileHeight() >= getTilePosY() &&
-               other.getTilePosY() <= getTilePosY() + getTileHeight();
-    }
-
-    bool canCombine(const TileDesc& other) const
-    {
-        if (isPreview() || other.isPreview())
-            return false;
-
-        if (!onSameRow(other))
-            return false;
-
-        const int gridX = getTilePosX() / getTileWidth();
-        const int gridXOther = other.getTilePosX() / other.getTileWidth();
-        const int delta = gridX - gridXOther;
-        // a 4k screen - is sixteen 256 pixel wide tiles wide.
-        return (delta >= -16 && delta <= 16);
     }
 
     /// Serialize this instance into a string.

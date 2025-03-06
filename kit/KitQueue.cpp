@@ -442,6 +442,175 @@ TileCombined KitQueue::popTileQueue(TilePrioritizer::Priority &priority)
     return popTileQueue(*tileQueue, priority);
 }
 
+namespace {
+
+    // If these can appear in the same tile combine
+    bool allowCombine(const TileDesc& a, const TileDesc& b)
+    {
+        if (a.isPreview() || b.isPreview())
+            return false;
+        return a.sameTileCombineParams(b);
+    }
+
+    // If candidate can appear in the same tile combine as prioTile and is
+    // positioned at the same Y pos as tilePosY
+    bool allowCombineIfRow(const TileDesc& prioTile,
+                           int tilePosY,
+                           const TileDesc& candidate,
+                           std::string_view check)
+    {
+        bool res = tilePosY == candidate.getTilePosY() &&
+                   allowCombine(prioTile, candidate);
+        LOG_TRC("Combining candidate: " << candidate.serialize() <<
+                " x-grid=" << candidate.getTilePosX() / candidate.getTileWidth() <<
+                " y-grid-" << candidate.getTilePosY() / candidate.getTileHeight() <<
+                (res ? " accepted" : " rejected") << ' ' << check);
+        return res;
+    }
+
+    void sortedInsert(std::vector<TileDesc>& tileQueue, const TileDesc& tile)
+    {
+        const auto it = std::lower_bound(tileQueue.begin(), tileQueue.end(), tile);
+        const bool duplicate = it != tileQueue.end() && tile == *it;
+        if (duplicate)
+        {
+            // We discard the earlier dup in favour of this new one
+            LOG_TRC("Remove duplicate tile request: " << it->serialize() <<
+                    " -> " << tile.serialize());
+            *it = tile;
+            return;
+        }
+        tileQueue.insert(it, tile);
+    }
+
+    constexpr int maxCombinedGridSpan = 16;
+
+    std::pair<int, int> combineHoriAround(std::vector<TileDesc>& tileQueue,
+                                          std::vector<TileDesc>& destTiles, int tilePos)
+    {
+        const TileDesc& prioTile = tileQueue[tilePos];
+        const int tileWidth = prioTile.getTileWidth();
+
+        const int prioGridPos = prioTile.getTilePosX() / tileWidth;
+
+        int leftGridX = prioGridPos;
+        int rightGridX = prioGridPos;
+
+        int leftTile = tilePos - 1;
+        int rightTile = tilePos + 1;
+
+        int tilePosY = prioTile.getTilePosY();
+
+        // Starting at the (guaranteed to exist) priority tile check in the
+        // sorted tileQueue to its left and right along the same row for
+        // candidate tiles that can be combined into the same request.
+        // But limit the request at maxCombinedGridSpan wide.
+        while (true)
+        {
+            const bool canCombineLeft = leftTile > -1 &&
+                allowCombineIfRow(prioTile, tilePosY, tileQueue[leftTile], "same row, left");
+            const bool canCombineRight = static_cast<unsigned>(rightTile) < tileQueue.size() &&
+                allowCombineIfRow(prioTile, tilePosY, tileQueue[rightTile], "same row, right");
+            if (!canCombineLeft && !canCombineRight)
+                break;
+
+            int leftGridDistance = INT_MAX;
+            int leftProposedGridX = leftGridX;
+            if (canCombineLeft)
+            {
+                leftProposedGridX = tileQueue[leftTile].getTilePosX() / tileWidth;
+                leftGridDistance = prioGridPos - leftProposedGridX;
+            }
+
+            int rightGridDistance = INT_MAX;
+            int rightProposedGridX = rightGridX;
+            if (canCombineRight)
+            {
+                rightProposedGridX = tileQueue[rightTile].getTilePosX() / tileWidth;
+                rightGridDistance = rightProposedGridX - prioGridPos;
+            }
+
+            int combineCandidate;
+            if (leftGridDistance < rightGridDistance)
+            {
+                if (rightGridX - leftProposedGridX >= maxCombinedGridSpan)
+                    break;
+
+                leftGridX = leftProposedGridX;
+                combineCandidate = leftTile--;
+            }
+            else
+            {
+                if (rightProposedGridX - leftGridX >= maxCombinedGridSpan)
+                    break;
+
+                rightGridX = rightProposedGridX;
+                combineCandidate = rightTile++;
+            }
+
+            sortedInsert(destTiles, tileQueue[combineCandidate]);
+        }
+
+        // erase from source all the dest inserted tiles in one fell swoop
+        tileQueue.erase(tileQueue.begin() + leftTile + 1, tileQueue.begin() + rightTile);
+
+        return std::make_pair(leftGridX, rightGridX);
+    }
+
+    // To stand in for a tile otherwise the same as prioTile, but at an
+    // alternative position
+    struct SpeculativeTileDesc
+    {
+        const TileDesc& _prioTile;
+        int _tilePosX;
+        int _tilePosY;
+
+        SpeculativeTileDesc(const TileDesc& prioTile,
+                            int leftGridX, int vertDirection)
+            : _prioTile(prioTile)
+        {
+            _tilePosX = leftGridX * prioTile.getTileWidth();
+            _tilePosY = prioTile.getTilePosY() + (prioTile.getTileHeight() * vertDirection);
+        }
+
+    };
+
+    bool operator<(const TileDesc& candidate, const SpeculativeTileDesc& other)
+    {
+        return candidate.compareAsAtTilePos(other._prioTile,
+                                            other._tilePosX,
+                                            other._tilePosY);
+    }
+
+    void combineVerticalTiles(std::vector<TileDesc>& tileQueue,
+                              std::vector<TileDesc>& destTiles,
+                              const TileDesc& prioTile,
+                              int leftGridX, int rightGridX,
+                              int vertDirection)
+    {
+        SpeculativeTileDesc anchorTile(prioTile, leftGridX, vertDirection);
+
+        auto it = std::lower_bound(tileQueue.begin(), tileQueue.end(), anchorTile);
+        while (it != tileQueue.end())
+        {
+            if (!allowCombineIfRow(prioTile, anchorTile._tilePosY, *it,
+                                   vertDirection > 0 ? "row below" : "row above"))
+            {
+                break;
+            }
+
+            const int gridX = it->getTilePosX() / it->getTileWidth();
+            if (gridX >= leftGridX && gridX <= rightGridX)
+            {
+                sortedInsert(destTiles, *it);
+                it = tileQueue.erase(it);
+            }
+            else
+                ++it;
+        }
+    }
+}
+
 TileCombined KitQueue::popTileQueue(std::vector<TileDesc>& tileQueue, TilePrioritizer::Priority &priority)
 {
     assert(!tileQueue.empty());
@@ -470,28 +639,40 @@ TileCombined KitQueue::popTileQueue(std::vector<TileDesc>& tileQueue, TilePriori
         }
     }
 
-    // remove highest priority tile from the queue
-    tileQueue.erase(tileQueue.begin() + prioritized);
     priority = prioritySoFar;
+
+    LOG_TRC("Priority tile: " << msg.serialize() <<
+            " x-grid=" << msg.getTilePosX() / msg.getTileWidth() <<
+            " y-grid=" << msg.getTilePosY() / msg.getTileHeight());
 
     // and add it to the render list
     tiles.emplace_back(msg);
 
-    // Combine as many tiles as possible with this tile.
-    for (size_t i = 0; i < tileQueue.size(); )
+    if (msg.isPreview())
     {
-        auto& it = tileQueue[i];
+        // Short circuit previews, which don't combine
+        tileQueue.erase(tileQueue.begin() + prioritized);
+    }
+    else
+    {
+        // Combine as many horizontal tiles as sensible with this tile, return the populated range,
+        auto [ leftGridX, rightGridX ] = combineHoriAround(tileQueue, tiles, prioritized);
 
-        LOG_TRC("Combining candidate: " << it.serialize());
-
-        // Check if it's on the same row.
-        if (tiles[0].canCombine(it))
+        int gridSpan = rightGridX - leftGridX;
+        // Distribute available max sensible window width to collect potential
+        // additional candidates in neighbour rows
+        if (gridSpan < maxCombinedGridSpan)
         {
-            tiles.emplace_back(it);
-            tileQueue.erase(tileQueue.begin() + i);
+            int availSpans = maxCombinedGridSpan - gridSpan;
+            int leftExpand = std::min(leftGridX, availSpans / 2);
+            int rightExpand = availSpans - leftExpand;
+            leftGridX -= leftExpand;
+            rightGridX += rightExpand;
         }
-        else
-            ++i;
+
+        // Combine tiles vertically adjacent to this range
+        combineVerticalTiles(tileQueue, tiles, msg, leftGridX, rightGridX, -1);
+        combineVerticalTiles(tileQueue, tiles, msg, leftGridX, rightGridX, +1);
     }
 
     LOG_TRC("Combined " << tiles.size() << " tiles, leaving " << tileQueue.size() << " in queue.");
@@ -564,24 +745,6 @@ std::string KitQueue::combineTextInput(const StringVector& tokens)
     }
 
     return std::string();
-}
-
-namespace {
-
-    void sortedInsert(std::vector<TileDesc>& tileQueue, const TileDesc& tile)
-    {
-        const auto it = std::lower_bound(tileQueue.begin(), tileQueue.end(), tile);
-        const bool duplicate = it != tileQueue.end() && tile == *it;
-        if (duplicate)
-        {
-            // We discard the earlier dup in favour of this new one
-            LOG_TRC("Remove duplicate tile request: " << it->serialize() <<
-                    " -> " << tile.serialize());
-            *it = tile;
-            return;
-        }
-        tileQueue.insert(it, tile);
-    }
 }
 
 void KitQueue::pushTileCombineRequest(const Payload &value)
