@@ -3680,7 +3680,7 @@ msgstr "Khám phá phiên bản mới {coolversion}"
 
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.h2:27-7
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.h2:38-7
-msgid "Collabora Online Development Edition"
+msgid "Perfectum Docs"
 msgstr "Collabora Online bản Phát triển"
 
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.p:28-7
@@ -3704,12 +3704,12 @@ msgstr "Khám phá tất cả các thay đổi"
 msgid ""
 "Check the <a target=\"_blank\" href=\"https://www.collaboraonline.com/"
 "code-24-04-release-notes/\">release notes</a> and learn all about: The "
-"latest Collabora Online Development Edition, aimed at home users and small "
+"latest Perfectum Docs, aimed at home users and small "
 "teams."
 msgstr ""
 "Kiểm tra <a target=\"_blank\" href=\"https://www.collaboraonline.com/"
 "code-24-04-release-notes/\">ghi chú phát hành</a> và tìm hiểu tất cả về: "
-"Phiên bản mới nhất của Collabora Online Development Edition,dành cho người "
+"Phiên bản mới nhất của Perfectum Docs,dành cho người "
 "dùng gia đình và các nhóm nhỏ."
 
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.h1:48-7

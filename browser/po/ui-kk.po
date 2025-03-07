@@ -3713,7 +3713,7 @@ msgstr "Жаңа {coolversion} туралы білу"
 
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.h2:27-7
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.h2:38-7
-msgid "Collabora Online Development Edition"
+msgid "Perfectum Docs"
 msgstr "Collabora Online әзірлеушілер нұсқасы"
 
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.p:28-7
@@ -3737,7 +3737,7 @@ msgstr "Барлық өзгерістерді білу"
 msgid ""
 "Check the <a target=\"_blank\" href=\"https://www.collaboraonline.com/"
 "code-24-04-release-notes/\">release notes</a> and learn all about: The "
-"latest Collabora Online Development Edition, aimed at home users and small "
+"latest Perfectum Docs, aimed at home users and small "
 "teams."
 msgstr ""
 "<a target=\"_blank\" href=\"https://www.collaboraonline.com/"

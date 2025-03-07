@@ -2123,7 +2123,7 @@ L.Control.Menubar = L.Control.extend({
 		} else if (id === 'report-an-issue') {
 			window.open('https://github.com/CollaboraOnline/online/issues', '_blank');
 		} else if (id === 'forum') {
-			window.open('https://forum.collaboraonline.com', '_blank');
+			window.open('https://perfectum.ua/ua/documentation', '_blank');
 		} else if (id === 'inserthyperlink') {
 			app.dispatcher.dispatch('hyperlinkdialog');
 		} else if (id === 'keyboard-shortcuts' || id === 'online-help') {

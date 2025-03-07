@@ -27,7 +27,7 @@ L.ProgressOverlay = L.Layer.extend({
 		if (window.ThisIsAMobileApp) {
 			productName = window.MobileAppName;
 		} else {
-			productName = (typeof brandProductName !== 'undefined') ? brandProductName : 'Collabora Online Development Edition (unbranded)';
+			productName = (typeof brandProductName !== 'undefined') ? brandProductName : 'Perfectum Docs';
 		}
 		this._brandLabel = L.DomUtil.create('div', 'leaflet-progress-label brand-label', this._container);
 		this._brandLabel.innerHTML = productName;

@@ -734,7 +734,7 @@ L.Map.include({
 		if (window.ThisIsAMobileApp) {
 			productName = window.MobileAppName;
 		} else {
-			productName = (typeof brandProductName !== 'undefined') ? brandProductName : 'Collabora Online Development Edition (unbranded)';
+			productName = (typeof brandProductName !== 'undefined') ? brandProductName : 'Perfectum Docs';
 		}
 
 		map.uiManager.showYesNoButton(id + '-box', productName, '', _('OK'), null, null, null, true);

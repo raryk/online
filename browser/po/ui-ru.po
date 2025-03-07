@@ -3713,7 +3713,7 @@ msgstr "Узнайте о новой {coolversion}"
 
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.h2:27-7
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.h2:38-7
-msgid "Collabora Online Development Edition"
+msgid "Perfectum Docs"
 msgstr "Collabora Online для разработчиков"
 
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.p:28-7
@@ -3737,12 +3737,12 @@ msgstr "Узнать обо всех изменениях"
 msgid ""
 "Check the <a target=\"_blank\" href=\"https://www.collaboraonline.com/"
 "code-24-04-release-notes/\">release notes</a> and learn all about: The "
-"latest Collabora Online Development Edition, aimed at home users and small "
+"latest Perfectum Docs, aimed at home users and small "
 "teams."
 msgstr ""
 "Ознакомьтесь с <a target=\"_blank\" href=\"https://www.collaboraonline.com/"
 "code-24-04-release-notes/\">примечаниями к выпуску</a> и узнайте все о: "
-"новейшей версии Collabora Online Development Edition, предназначенной для "
+"новейшей версии Perfectum Docs, предназначенной для "
 "домашних пользователей и небольших команд."
 
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.h1:48-7

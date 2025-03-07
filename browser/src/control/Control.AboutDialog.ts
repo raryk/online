@@ -89,7 +89,7 @@ class AboutDialog {
 			productName =
 				typeof brandProductName === 'string' && brandProductName.length > 0
 					? brandProductName
-					: 'Collabora Online Development Edition (unbranded)';
+					: 'Perfectum Docs';
 		}
 		var productURL =
 			typeof brandProductURL === 'string' && brandProductURL.length > 0

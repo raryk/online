@@ -1467,7 +1467,7 @@ msgstr "Голосовий коментар"
 #: src/control/Control.Menubar.js:384
 #: src/control/Control.NotebookbarWriter.js:380
 msgid "Forum"
-msgstr "Форум"
+msgstr "Документація"
 
 #: src/control/Control.Menubar.js:385 src/control/Control.Menubar.js:561
 #: src/control/Control.Menubar.js:698 src/control/Control.Menubar.js:988
@@ -3707,7 +3707,7 @@ msgstr "Ознайомтеся з новою {coolversion}"
 
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.h2:27-7
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.h2:38-7
-msgid "Collabora Online Development Edition"
+msgid "Perfectum Docs"
 msgstr "Collabora Online для розробників"
 
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.p:28-7
@@ -3731,12 +3731,12 @@ msgstr "Дізнайтеся про всі зміни"
 msgid ""
 "Check the <a target=\"_blank\" href=\"https://www.collaboraonline.com/"
 "code-24-04-release-notes/\">release notes</a> and learn all about: The "
-"latest Collabora Online Development Edition, aimed at home users and small "
+"latest Perfectum Docs, aimed at home users and small "
 "teams."
 msgstr ""
 "Перегляньте <a target=\"_blank\" href=\"https://www.collaboraonline.com/"
 "code-24-04-release-notes/\">примітки до випуску</a> та дізнайтеся все про: "
-"Новий випуск Collabora Online Development Edition, створений для звичайних "
+"Новий випуск Perfectum Docs, створений для звичайних "
 "користувачів і невеликих команд."
 
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.h1:48-7

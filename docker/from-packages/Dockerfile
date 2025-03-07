@@ -24,7 +24,7 @@ LABEL commit.history.online="https://github.com/CollaboraOnline/online/commits/$
 ARG repo
 
 # type: can be
-# 'code' - Collabora Online Development Edition
+# 'code' - Perfectum Docs
 # 'cool' - Collabora Online, to build this you need to give your secret URL part from https://support.collaboraoffice.com, i.e. you have to be Collabora partner or customer
 # 'key'  - Collabora Online, the license key enabled version.
 # Optional. The default is 'code'.
@@ -52,7 +52,7 @@ RUN --mount=type=secret,id=secret_key \
         echo "Based on the provided build arguments license key enabled Collabora Online will be used."; \
         repourl="${repourl}24.04-key/"; \
     else \
-        echo "Based on the provided build arguments Collabora Online Development Edition will be used."; \
+        echo "Based on the provided build arguments Perfectum Docs will be used."; \
         repourl="${repourl}24.04-CODE/CODE-deb/"; \
     fi && \
     echo "deb [signed-by=/usr/share/keyrings/collaboraonline-release-keyring.gpg] ${repourl} /" > /etc/apt/sources.list.d/collabora.list && \
