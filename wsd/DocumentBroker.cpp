@@ -1751,8 +1751,8 @@ void DocumentBroker::getBrowserSettingSync(const std::shared_ptr<ClientSession>&
         return;
     }
 
-    parseBrowserSettings(session, browsersettingResponse->getBody());
-    sendBrowserSetting(session);
+    if (parseBrowserSettings(session, browsersettingResponse->getBody()))
+        sendBrowserSetting(session);
 }
 
 struct PresetRequest
@@ -1894,28 +1894,40 @@ void DocumentBroker::asyncInstallPreset(
         if (session == nullptr || session->getSentBrowserSetting())
             return;
         const std::string& body = presetHttpResponse->getBody();
-        DocumentBroker::parseBrowserSettings(session, body);
-        DocumentBroker::sendBrowserSetting(session);
+        if (DocumentBroker::parseBrowserSettings(session, body))
+            DocumentBroker::sendBrowserSetting(session);
     }
 
     LOG_DBG("Saving preset file to jailPath[" << presetFile << ']');
     presetHttpResponse->saveBodyToFile(presetFile);
 }
 
-void DocumentBroker::parseBrowserSettings(const std::shared_ptr<ClientSession>& session,
+bool DocumentBroker::parseBrowserSettings(const std::shared_ptr<ClientSession>& session,
                                           const std::string& responseBody)
 {
-    Poco::JSON::Parser parser;
-    auto result = parser.parse(responseBody);
-    auto browsersetting = result.extract<Poco::JSON::Object::Ptr>();
-    if (browsersetting.isNull())
+    try
     {
-        LOG_INF("browsersetting.json is empty");
-        return;
-    }
+        LOG_TRC("Parsing browsersetting json from repsonseBody[" << responseBody << ']');
+        Poco::JSON::Parser parser;
+        auto result = parser.parse(responseBody);
+        auto browsersetting = result.extract<Poco::JSON::Object::Ptr>();
+        if (browsersetting.isNull())
+        {
+            LOG_INF("browsersetting.json is empty");
+            return true;
+        }
 
-    LOG_TRC("Setting _browserSettingsJSON for clientsession[" << session->getId() << ']');
-    session->setBrowserSettingsJSON(browsersetting);
+        LOG_TRC("Setting _browserSettingsJSON for clientsession[" << session->getId() << ']');
+        session->setBrowserSettingsJSON(browsersetting);
+    }
+    catch (const std::exception& exc)
+    {
+        LOG_ERR("Failed to parse browsersetting json["
+                << responseBody << "] with error[" << exc.what()
+                << "], disabling browsersetting for session[" << session->getId() << ']');
+        return false;
+    }
+    return true;
 }
 
 bool DocumentBroker::processPlugins(std::string& localPath)
@@ -2309,6 +2321,19 @@ bool DocumentBroker::isStorageOutdated() const
             << " and the last uploaded file was modified at " << lastModifiedTime << ", which are "
             << (currentModifiedTime == lastModifiedTime ? "identical" : "different"));
 
+#ifdef ENABLE_DEBUG
+    if (_storageManager.getLastUploadedFileModifiedTime() != _saveManager.getLastModifiedTime())
+    {
+        const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+        LOG_ERR("StorageManager's lastModifiedTime ["
+                << Util::getTimeForLog(now, _storageManager.getLastUploadedFileModifiedTime())
+                << "] doesn't match that of SaveManager's ["
+                << Util::getTimeForLog(now, _saveManager.getLastModifiedTime())
+                << "]. File lastModifiedTime: [" << Util::getTimeForLog(now, currentModifiedTime)
+                << ']');
+    }
+#endif
+
     // Compare to the last uploaded file's modified-time.
     return currentModifiedTime != lastModifiedTime;
 }
@@ -2624,14 +2649,23 @@ void DocumentBroker::uploadToStorageInternal(const std::shared_ptr<ClientSession
     if (!isSaveAs && newFileModifiedTime == _saveManager.getLastModifiedTime() && !isRename
         && !force)
     {
-        // Nothing to do.
-        const auto timeInSec = std::chrono::duration_cast<std::chrono::seconds>(
-            std::chrono::system_clock::now() - _saveManager.getLastModifiedTime());
-        LOG_DBG("Skipping unnecessary uploading to URI [" << uriAnonym << "] with docKey [" << _docKey <<
-                "]. File last modified " << timeInSec.count() << " seconds ago, timestamp unchanged.");
-        _poll->wakeup();
-        broadcastSaveResult(true, "unmodified");
-        return;
+        // We can end up here when an earlier upload attempt had failed because
+        // of a connection failure. In that case, _storageManger.lastUploadSuccessful()
+        // will be false (see below: _storageManager.setLastUploadResult()), so
+        // needToUploadToStorage() will return true. However, since there are no
+        // new document saves, the timestamps will match. Instead of skipping uploading,
+        // which would leave the lastUplaodSuccessful() as false permanently, we upload.
+        const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+        LOG_WRN("Uploading to URI ["
+                << uriAnonym << "] with docKey [" << _docKey
+                << "] even though it's unnecessary as the file lastModifiedTime [].  File "
+                   "lastModifiedTime ["
+                << Util::getTimeForLog(now, newFileModifiedTime)
+                << "] is identical to the SaveManager's ["
+                << Util::getTimeForLog(now, _saveManager.getLastModifiedTime())
+                << "]. StorageManager's lastModifiedTime ["
+                << Util::getTimeForLog(now, _storageManager.getLastUploadedFileModifiedTime())
+                << ']');
     }
 
     LOG_DBG("Uploading [" << _docKey << "] after saving to URI [" << uriAnonym << "].");
@@ -3087,7 +3121,8 @@ void DocumentBroker::handleDocumentConflict()
     }
 }
 
-void DocumentBroker::broadcastSaveResult(bool success, const std::string& result, const std::string& errorMsg)
+void DocumentBroker::broadcastSaveResult(bool success, const std::string_view result,
+                                         const std::string& errorMsg)
 {
     const std::string_view resultstr = success ? "true" : "false";
     // Some sane limit, otherwise we get problems transferring this to the client with large strings (can be a whole webpage)
@@ -3878,7 +3913,8 @@ void DocumentBroker::disconnectSessionInternal(const std::shared_ptr<ClientSessi
             LOG_DBG("Disconnecting session [" << id << "] from Kit");
             hardDisconnect = session->disconnectFromKit();
 
-            if (!Util::isMobileApp() && !isLoaded() && _sessions.empty())
+            if (!Util::isMobileApp() && !isLoaded() &&
+                _sessions.size() <= 1) // We remove the session below, so we still have it here.
             {
                 // We aren't even loaded and no other views--kill.
                 // If we send disconnect, we risk hanging because we flag Core for
@@ -3891,6 +3927,8 @@ void DocumentBroker::disconnectSessionInternal(const std::shared_ptr<ClientSessi
                                     << "] isn't loaded yet. Terminating the child roughly");
                 if (_childProcess)
                     _childProcess->terminate();
+
+                stop("Disconnected before loading");
             }
         }
 
@@ -4028,11 +4066,10 @@ void DocumentBroker::alertAllUsers(const std::string& msg)
 }
 
 #if !MOBILEAPP
-void DocumentBroker::syncBrowserSettings(const std::string& userId, const std::string& key,
-                                         const std::string& value)
+void DocumentBroker::syncBrowserSettings(const std::string& userId, const std::string& json)
 {
     ASSERT_CORRECT_THREAD();
-    LOG_DBG("Updating browser setting with key[" << key << "] and value[" << value
+    LOG_DBG("Updating browser setting with json[" << json
                                                  << "] for all sessions with userId [" << userId
                                                  << ']');
 
@@ -4043,7 +4080,16 @@ void DocumentBroker::syncBrowserSettings(const std::string& userId, const std::s
         if (it.second->getUserId() != userId)
             continue;
 
-        it.second->updateBrowserSettingsJSON(key, value);
+        try
+        {
+            it.second->updateBrowserSettingsJSON(json);
+        }
+        catch (const std::exception& exc)
+        {
+            LOG_WRN("Failed to update browsersetting json for session["
+                    << sessionForUpload->getId() << "], skipping the browsersetting upload step");
+            return;
+        }
         sessionForUpload = it.second;
     }
 
@@ -4166,7 +4212,7 @@ void DocumentBroker::uploadBrowserSettingsToWopiHost(const std::shared_ptr<Clien
         LOG_TRC("Successfully uploaded browsersetting to wopiHost");
     };
 
-    LOG_DBG("Uploading updated browsersetting to wopiHost[" << uriAnonym << ']');
+    LOG_DBG("Uploading browsersetting json [" << jsonStream.str() << "] to wopiHost[" << uriAnonym << ']');
     httpSession->setFinishedHandler(std::move(finishedCallback));
     httpSession->asyncRequest(httpRequest, *COOLWSD::getWebServerPoll());
 }
@@ -4933,11 +4979,9 @@ bool DocumentBroker::forwardToClient(const std::shared_ptr<Message>& payload)
                 std::shared_ptr<ClientSession> session = it->second;
                 return session->handleKitToClientMessage(payload);
             }
-            else
-            {
-                const std::string abbreviatedPayload = COOLWSD::AnonymizeUserData ? "..." : payload->abbr();
-                LOG_WRN("Client session [" << sid << "] not found to forward message: " << abbreviatedPayload);
-            }
+
+            LOG_WRN("Client session [" << sid << "] not found to forward message: "
+                                       << (COOLWSD::AnonymizeUserData ? "..." : payload->abbr()));
         }
     }
     else
@@ -5001,6 +5045,19 @@ void DocumentBroker::terminateChild(const std::string& closeReason)
 void DocumentBroker::closeDocument(const std::string& reason)
 {
     ASSERT_CORRECT_THREAD();
+
+    if (reason == "oom")
+    {
+        // This is an internal close request, coming from Admin::triggerMemoryCleanup().
+        // Dump the state now, since it's unsafe to do it from outside our poll thread.
+
+        // But first signal the Kit, because we might kill it soon after returning.
+        ::kill(getPid(), SIGUSR1);
+
+        std::ostringstream oss;
+        dumpState(oss);
+        LOG_WRN("OOM-closing Document [" << _docId << "]: " << oss.str());
+    }
 
     _docState.setCloseRequested();
     _closeReason = reason;
@@ -5206,7 +5263,7 @@ void DocumentBroker::dumpState(std::ostream& os)
     const auto now = std::chrono::steady_clock::now();
 
     os << std::boolalpha;
-    os << " Broker: " << getDocKey() << " pid: " << getPid();
+    os << "\nDocumentBroker [" << _docId << "] Dump: [" << getDocKey() << "], pid: " << getPid();
     if (_docState.isMarkedToDestroy())
         os << " *** Marked to destroy ***";
     else
@@ -5278,28 +5335,40 @@ void DocumentBroker::dumpState(std::ostream& os)
     os << "\n    Next StorageAttributes:";
     _nextStorageAttrs.dumpState(os, "\n      ");
 
+    os << "\n  Storage:";
+    _storage->dumpState(os, "\n    ");
+
+    os << '\n';
     _lockCtx->dumpState(os);
 
     if (_tileCache)
+    {
+        os << '\n';
         _tileCache->dumpState(os);
+    }
 
+    os << '\n';
     _poll->dumpState(os);
 
 #if !MOBILEAPP
     // Bit nasty - need a cleaner way to dump state.
-    os << "\n  Document broker sessions [" << _sessions.size() << "], should duplicate the above:";
-    for (const auto &it : _sessions)
+    if (!_sessions.empty())
     {
-        auto proto = it.second->getProtocol();
-        auto proxy = dynamic_cast<ProxyProtocolHandler *>(proto.get());
-        if (proxy)
-            proxy->dumpProxyState(os);
-        else
-            std::static_pointer_cast<MessageHandlerInterface>(it.second)->dumpState(os);
+        os << "\n  Document broker sessions [" << _sessions.size()
+           << "], should duplicate the above:";
+        for (const auto& it : _sessions)
+        {
+            auto proto = it.second->getProtocol();
+            auto proxy = dynamic_cast<ProxyProtocolHandler*>(proto.get());
+            if (proxy)
+                proxy->dumpProxyState(os);
+            else
+                std::static_pointer_cast<MessageHandlerInterface>(it.second)->dumpState(os);
+        }
     }
 #endif
 
-    os << '\n';
+    os << "\n End DocumentBroker [" << _docId << "] Dump\n";
 }
 
 bool DocumentBroker::isAsyncUploading() const

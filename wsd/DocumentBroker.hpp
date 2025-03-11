@@ -269,20 +269,15 @@ public:
     void finalRemoveSession(const std::shared_ptr<ClientSession>& session);
 
     /// Create new client session
-    std::shared_ptr<ClientSession> createNewClientSession(
-        const std::shared_ptr<ProtocolHandlerInterface> &ws,
-        const std::string& id,
-        const Poco::URI& uriPublic,
-        const bool isReadOnly,
-        const RequestDetails &requestDetails);
+    std::shared_ptr<ClientSession>
+    createNewClientSession(const std::shared_ptr<ProtocolHandlerInterface>& ws,
+                           const std::string& id, const Poco::URI& uriPublic, bool isReadOnly,
+                           const RequestDetails& requestDetails);
 
     /// Find or create a new client session for the PHP proxy
-    void handleProxyRequest(
-        const std::string& id,
-        const Poco::URI& uriPublic,
-        const bool isReadOnly,
-        const RequestDetails &requestDetails,
-        const std::shared_ptr<StreamSocket> &socket);
+    void handleProxyRequest(const std::string& id, const Poco::URI& uriPublic, bool isReadOnly,
+                            const RequestDetails& requestDetails,
+                            const std::shared_ptr<StreamSocket>& socket);
 
     /// Thread safe termination of this broker if it has a lingering thread
     void joinThread();
@@ -322,7 +317,7 @@ public:
     /// @param uploadAsPath Absolute path to the jailed file.
     void uploadAsToStorage(const std::shared_ptr<ClientSession>& session,
                            const std::string& uploadAsPath, const std::string& uploadAsFilename,
-                           const bool isRename, const bool isExport);
+                           bool isRename, bool isExport);
 
     /// Uploads the document right after loading from a template.
     /// Template-loading requires special handling because the
@@ -330,7 +325,7 @@ public:
     void uploadAfterLoadingTemplate(const std::shared_ptr<ClientSession>& session);
 
     bool isModified() const { return _isModified; }
-    void setModified(const bool value);
+    void setModified(bool value);
 
     /// Save the document if the document is modified.
     /// @param force when true, will force saving if there
@@ -339,7 +334,7 @@ public:
     /// @param finalWrite this is our last write before exit, lets make it synchronous
     /// @return true if attempts to save or it also waits
     /// and receives save notification. Otherwise, false.
-    bool autoSave(const bool force, const bool dontSaveIfUnmodified, const bool finalWrite = false);
+    bool autoSave(bool force, bool dontSaveIfUnmodified, bool finalWrite = false);
 
     /// Saves the document and stops if there was nothing to autosave.
     void autoSaveAndStop(const std::string& reason);
@@ -383,8 +378,7 @@ public:
     void alertAllUsers(const std::string& msg);
 
 #if !MOBILEAPP
-    void syncBrowserSettings(const std::string& userId, const std::string& key,
-                             const std::string& value);
+    void syncBrowserSettings(const std::string& userId, const std::string& json);
 
     void uploadBrowserSettingsToWopiHost(const std::shared_ptr<ClientSession>& session);
 
@@ -433,7 +427,7 @@ public:
     static bool lookupSendClipboardTag(const std::shared_ptr<StreamSocket> &socket,
                                        const std::string &tag, bool sendError = false);
 
-    void handleMediaRequest(const std::string_view range, const std::shared_ptr<Socket>& socket,
+    void handleMediaRequest(std::string_view range, const std::shared_ptr<Socket>& socket,
                             const std::string& tag);
 
     /// True if any flag to close, terminate, or to unload is set.
@@ -563,7 +557,8 @@ public:
 
     static void sendBrowserSetting(const std::shared_ptr<ClientSession>& session);
 
-    static void parseBrowserSettings(const std::shared_ptr<ClientSession>& session,
+    // Return true if parsing of browsersetting is successfull
+    static bool parseBrowserSettings(const std::shared_ptr<ClientSession>& session,
                                      const std::string& responseBody);
 
     /// Start an asynchronous Installation of the user presets, e.g. autotexts etc, as
@@ -753,7 +748,7 @@ private:
     /// Upload the doc to the storage.
     void uploadToStorageInternal(const std::shared_ptr<ClientSession>& session,
                                  const std::string& saveAsPath, const std::string& saveAsFilename,
-                                 const bool isRename, const bool isExport, const bool force);
+                                 bool isRename, bool isExport, bool force);
 
     /// Handles the completion of uploading to storage, both success and failure cases.
     void handleUploadToStorageResponse(const StorageBase::UploadResult& uploadResult);
@@ -775,7 +770,7 @@ private:
      * @param result: Short message why saving was (not) successful
      * @param errorMsg: Long error msg (Error message from WOPI host if any)
      */
-    void broadcastSaveResult(bool success, const std::string& result = std::string(),
+    void broadcastSaveResult(bool success, std::string_view result,
                              const std::string& errorMsg = std::string());
 
     /// Broadcasts to all sessions the last modification time of the document.

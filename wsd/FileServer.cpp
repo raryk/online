@@ -149,7 +149,7 @@ bool isPamAuthOk(const std::string& userProvidedUsr, const std::string& userProv
 bool isConfigAuthOk(const std::string& userProvidedUsr, const std::string& userProvidedPwd)
 {
     const auto& config = Application::instance().config();
-    const std::string& user = config.getString("admin_console.username", "");
+    const std::string& user = config.getString("admin_console.username", std::string());
 
     // Check for the username
     if (user.empty())
@@ -157,7 +157,8 @@ bool isConfigAuthOk(const std::string& userProvidedUsr, const std::string& userP
         LOG_ERR("Admin Console username missing, admin console disabled.");
         return false;
     }
-    else if (user != userProvidedUsr)
+
+    if (user != userProvidedUsr)
     {
         LOG_ERR("Admin Console wrong username.");
         return false;
@@ -168,7 +169,8 @@ bool isConfigAuthOk(const std::string& userProvidedUsr, const std::string& userP
     // do we have secure_password?
     if (config.has("admin_console.secure_password"))
     {
-        const std::string securePass = config.getString("admin_console.secure_password", "");
+        const std::string securePass =
+            config.getString("admin_console.secure_password", std::string());
         if (securePass.empty())
         {
             LOG_ERR("Admin Console secure password is empty, denying access." << useCoolconfig);
@@ -501,7 +503,8 @@ bool FileServerRequestHandler::isAdminLoggedIn(const HTTPRequest& request, http:
 
             return;
         }
-        else if(request.getMethod() == "GET" && path.toString().ends_with(suffix))
+
+        if (request.getMethod() == "GET" && path.toString().ends_with(suffix))
         {
             const std::shared_ptr<LocalFileInfo>& localFile =
                 LocalFileInfo::getOrCreateFile(localPath, path.getFileName());
@@ -516,7 +519,8 @@ bool FileServerRequestHandler::isAdminLoggedIn(const HTTPRequest& request, http:
             socket->send(httpResponse);
             return;
         }
-        else if (request.getMethod() == "POST" && path.toString().ends_with(suffix))
+
+        if (request.getMethod() == "POST" && path.toString().ends_with(suffix))
         {
             const std::shared_ptr<LocalFileInfo>& localFile =
                 LocalFileInfo::getOrCreateFile(localPath, path.getFileName());
@@ -894,12 +898,13 @@ void FileServerRequestHandler::handleRequest(const HTTPRequest& request,
         // handle here:
 
 #if ENABLE_DEBUG
-        if (relPath.starts_with("/wopi/files")) {
+        if (relPath.starts_with("/wopi/files"))
+        {
             handleWopiRequest(request, requestDetails, message, socket);
             return;
         }
-        else if (relPath.starts_with("/wopi/settings") ||
-                 relPath.ends_with("/wopi/settings/upload"))
+
+        if (relPath.starts_with("/wopi/settings") || relPath.ends_with("/wopi/settings/upload"))
         {
             handleSettingsRequest(request, etagString, message, socket);
             return;

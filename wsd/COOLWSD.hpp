@@ -218,7 +218,7 @@ public:
     /// child kit processes and cleans up DocBrokers.
     static void doHousekeeping();
 
-    static void checkDiskSpaceAndWarnClients(const bool cacheLastCheck);
+    static void checkDiskSpaceAndWarnClients(bool cacheLastCheck);
 
     static void checkSessionLimitsAndWarnClients();
 
@@ -248,8 +248,7 @@ public:
     static void setMigrationMsgReceived(const std::string& docKey);
     static void setAllMigrationMsgReceived();
 #if !MOBILEAPP
-    static void syncUsersBrowserSettings(const std::string& userId, const std::string& key,
-                                             const std::string& value);
+    static void syncUsersBrowserSettings(const std::string& userId, const std::string& json);
 #endif
 
 #if ENABLE_DEBUG
@@ -288,7 +287,7 @@ protected:
 private:
 #if !MOBILEAPP
     void processFetchUpdate(SocketPoll& poll);
-    static void setupChildRoot(const bool UseMountNamespaces);
+    static void setupChildRoot(bool UseMountNamespaces);
     void initializeEnvOptions();
 #endif // !MOBILEAPP
 

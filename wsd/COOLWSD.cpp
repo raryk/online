@@ -332,8 +332,7 @@ void COOLWSD::alertAllUsersInternal(const std::string& msg)
 }
 
 #if !MOBILEAPP
-void COOLWSD::syncUsersBrowserSettings(const std::string& userId, const std::string& key,
-                                       const std::string& value)
+void COOLWSD::syncUsersBrowserSettings(const std::string& userId, const std::string& json)
 {
     if constexpr (Util::isMobileApp())
         return;
@@ -344,8 +343,8 @@ void COOLWSD::syncUsersBrowserSettings(const std::string& userId, const std::str
     for (auto& brokerIt : DocBrokers)
     {
         std::shared_ptr<DocumentBroker> docBroker = brokerIt.second;
-        docBroker->addCallback([userId, key, value, docBroker]()
-                               { docBroker->syncBrowserSettings(userId, key, value); });
+        docBroker->addCallback([userId, json, docBroker]()
+                               { docBroker->syncBrowserSettings(userId, json); });
     }
 }
 #endif
@@ -4202,7 +4201,7 @@ void dump_state()
     if (Server)
         Server->dumpState(oss);
 
-    oss << "\nMalloc info: \n" << Util::getMallocInfo() << '\n';
+    oss << "\nMalloc info [" << getpid() << "]: \n" << Util::getMallocInfo() << '\n';
 
     const std::string msg = oss.str();
     fprintf(stderr, "%s\n", msg.c_str());

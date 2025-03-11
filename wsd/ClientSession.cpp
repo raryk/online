@@ -27,6 +27,7 @@
 #include <Poco/Net/HTTPResponse.h>
 #include <Poco/StreamCopier.h>
 #include <Poco/URI.h>
+#include <Poco/JSON/Parser.h>
 
 #include "ConfigUtil.hpp"
 #include "DocumentBroker.hpp"
@@ -570,8 +571,12 @@ bool ClientSession::_handleInput(const char *buffer, int length)
                     LOG_WRN("For some reason the _performanceCounterEpoch is still zero, ignoring TRACEEVENT from cool as the timestamp would be garbage");
                     warnedOnce = true;
                 }
+
                 return false;
-            } else if (_performanceCounterEpoch < 1620000000000000ull || _performanceCounterEpoch > 2000000000000000ull)
+            }
+
+            if (_performanceCounterEpoch < 1620000000000000ull ||
+                _performanceCounterEpoch > 2000000000000000ull)
             {
                 static bool warnedOnce = false;
                 if (!warnedOnce)
@@ -579,6 +584,7 @@ bool ClientSession::_handleInput(const char *buffer, int length)
                     LOG_WRN("For some reason the _performanceCounterEpoch is bogus, ignoring TRACEEVENT from cool as the timestamp would be garbage");
                     warnedOnce = true;
                 }
+
                 return false;
             }
 
@@ -946,35 +952,35 @@ bool ClientSession::_handleInput(const char *buffer, int length)
             logSyntaxErrorDetails(tokens, firstLine);
             return true;
         }
-        else
+
+        if (tokens.size() == 7)
         {
-            if (tokens.size() == 7)
+            int splitX;
+            int splitY;
+            if (!getTokenInteger(tokens[5], "splitx", splitX) ||
+                !getTokenInteger(tokens[6], "splity", splitY))
             {
-                int splitX, splitY;
-                if (!getTokenInteger(tokens[5], "splitx", splitX) ||
-                    !getTokenInteger(tokens[6], "splity", splitY))
-                {
-                    logSyntaxErrorDetails(tokens, firstLine);
-                    return true;
-                }
-
-                _splitX = splitX;
-                _splitY = splitY;
+                logSyntaxErrorDetails(tokens, firstLine);
+                return true;
             }
 
-            // Untrusted user input, make sure these are not negative.
-            if (width < 0)
-            {
-                width = 0;
-            }
-            if (height < 0)
-            {
-                height = 0;
-            }
-
-            _clientVisibleArea = Util::Rectangle(x, y, width, height);
-            return forwardToChild(std::string(buffer, length), docBroker);
+            _splitX = splitX;
+            _splitY = splitY;
         }
+
+        // Untrusted user input, make sure these are not negative.
+        if (width < 0)
+        {
+            width = 0;
+        }
+
+        if (height < 0)
+        {
+            height = 0;
+        }
+
+        _clientVisibleArea = Util::Rectangle(x, y, width, height);
+        return forwardToChild(std::string(buffer, length), docBroker);
     }
     else if (tokens.equals(0, "setclientpart"))
     {
@@ -987,11 +993,9 @@ bool ClientSession::_handleInput(const char *buffer, int length)
                 logSyntaxErrorDetails(tokens, firstLine);
                 return false;
             }
-            else
-            {
-                _clientSelectedPart = temp;
-                return forwardToChild(std::string(buffer, length), docBroker);
-            }
+
+            _clientSelectedPart = temp;
+            return forwardToChild(std::string(buffer, length), docBroker);
         }
     }
     else if (tokens.equals(0, "selectclientpart"))
@@ -1007,10 +1011,8 @@ bool ClientSession::_handleInput(const char *buffer, int length)
                 sendTextFrameAndLogError("error: cmd=selectclientpart kind=syntax");
                 return false;
             }
-            else
-            {
-                return forwardToChild(std::string(buffer, length), docBroker);
-            }
+
+            return forwardToChild(std::string(buffer, length), docBroker);
         }
     }
     else if (tokens.equals(0, "moveselectedclientparts"))
@@ -1024,17 +1026,18 @@ bool ClientSession::_handleInput(const char *buffer, int length)
                 sendTextFrameAndLogError("error: cmd=moveselectedclientparts kind=syntax");
                 return false;
             }
-            else
-            {
-                if (isEditable())
-                    docBroker->updateLastModifyingActivityTime();
-                return forwardToChild(std::string(buffer, length), docBroker);
-            }
+
+            if (isEditable())
+                docBroker->updateLastModifyingActivityTime();
+            return forwardToChild(std::string(buffer, length), docBroker);
         }
     }
     else if (tokens.equals(0, "clientzoom"))
     {
-        int tilePixelWidth, tilePixelHeight, tileTwipWidth, tileTwipHeight;
+        int tilePixelWidth;
+        int tilePixelHeight;
+        int tileTwipWidth;
+        int tileTwipHeight;
         if (tokens.size() < 5 ||
             !getTokenInteger(tokens[1], "tilepixelwidth", tilePixelWidth) ||
             !getTokenInteger(tokens[2], "tilepixelheight", tilePixelHeight) ||
@@ -1046,14 +1049,12 @@ bool ClientSession::_handleInput(const char *buffer, int length)
             logSyntaxErrorDetails(tokens, firstLine);
             return true;
         }
-        else
-        {
-            _tileWidthPixel = tilePixelWidth;
-            _tileHeightPixel = tilePixelHeight;
-            _tileWidthTwips = tileTwipWidth;
-            _tileHeightTwips = tileTwipHeight;
-            return forwardToChild(std::string(buffer, length), docBroker);
-        }
+
+        _tileWidthPixel = tilePixelWidth;
+        _tileHeightPixel = tilePixelHeight;
+        _tileWidthTwips = tileTwipWidth;
+        _tileHeightTwips = tileTwipHeight;
+        return forwardToChild(std::string(buffer, length), docBroker);
     }
     else if (tokens.equals(0, "tileprocessed"))
     {
@@ -1338,10 +1339,8 @@ bool ClientSession::_handleInput(const char *buffer, int length)
             const std::string dummyFrame = "dummymsg";
             return forwardToChild(dummyFrame, docBroker);
         }
-        else
-        {
-            return forwardToChild(std::string(buffer, length), docBroker);
-        }
+
+        return forwardToChild(std::string(buffer, length), docBroker);
     }
     else if (tokens.equals(0, "attemptlock"))
     {
@@ -1363,15 +1362,12 @@ bool ClientSession::_handleInput(const char *buffer, int length)
     else if (tokens.equals(0, "browsersetting") && tokens.size() >= 3)
     {
         std::string action;
-        std::string json;
         getTokenString(tokens[1], "action", action);
         if (action == "update")
         {
-            std::string key;
-            std::string value;
-            getTokenString(tokens[2], "key", key);
-            getTokenString(tokens[3], "value", value);
-            COOLWSD::syncUsersBrowserSettings(getUserId(), key, value);
+            std::string json;
+            getTokenString(tokens[2], "json", json);
+            COOLWSD::syncUsersBrowserSettings(getUserId(), json);
         }
     }
 #endif
@@ -1385,28 +1381,35 @@ bool ClientSession::_handleInput(const char *buffer, int length)
 }
 
 #if !MOBILEAPP
-void ClientSession::updateBrowserSettingsJSON(const std::string& key, const std::string& value)
+void ClientSession::updateBrowserSettingsJSON(const std::string& json)
 {
-    std::vector<std::string> vec = Util::splitStringToVector(key, '.');
-    if (vec.size() == 2)
+    Poco::JSON::Parser parser;
+    auto result = parser.parse(json);
+    auto extractedObject= result.extract<Poco::JSON::Object::Ptr>();
+    for (const auto& key : extractedObject->getNames())
     {
-        const std::string& parentKey = vec[0];
-        const std::string& childKey = vec[1];
-        if (!childKey.empty() && !parentKey.empty())
+        const std::string& value = extractedObject->get(key);
+        std::vector<std::string> vec = Util::splitStringToVector(key, '.');
+        if (vec.size() == 2)
         {
-            Poco::JSON::Object::Ptr jsonObject;
-            if (_browserSettingsJSON->has(parentKey))
-                jsonObject = _browserSettingsJSON->getObject(parentKey);
-            else
-                jsonObject = new Poco::JSON::Object();
+            const std::string& parentKey = vec[0];
+            const std::string& childKey = vec[1];
+            if (!childKey.empty() && !parentKey.empty())
+            {
+                Poco::JSON::Object::Ptr jsonObject;
+                if (_browserSettingsJSON->has(parentKey))
+                    jsonObject = _browserSettingsJSON->getObject(parentKey);
+                else
+                    jsonObject = new Poco::JSON::Object();
 
-            jsonObject->set(childKey, value);
-            _browserSettingsJSON->set(parentKey, jsonObject);
+                jsonObject->set(childKey, value);
+                _browserSettingsJSON->set(parentKey, jsonObject);
+            }
         }
-    }
-    else
-    {
-        _browserSettingsJSON->set(key, value);
+        else
+        {
+            _browserSettingsJSON->set(key, value);
+        }
     }
 }
 #endif
@@ -1956,14 +1959,14 @@ void ClientSession::postProcessCopyPayload(const std::shared_ptr<Message>& paylo
                     origin = "</div>";
                     data.insert(data.begin() + pos, origin.begin(), origin.end());
                 }
+
                 return true;
             }
-            else
-            {
-                LOG_DBG("Missing <body> in textselectioncontent/clipboardcontent payload: "
-                        << Util::dumpHex(data));
-                return false;
-            }
+
+            LOG_DBG("Missing <body> in textselectioncontent/clipboardcontent payload: "
+                    << Util::dumpHex(data));
+            return false;
+
         });
 }
 
@@ -2422,10 +2425,8 @@ bool ClientSession::handleKitToClientMessage(const std::shared_ptr<Message>& pay
                         forwardToClient(std::make_shared<Message>(msg, Message::Dir::Out));
                         return true;
                     }
-                    else
-                    {
-                        LOG_ERR("Invalid embeddedmedia json without id: " << json);
-                    }
+
+                    LOG_ERR("Invalid embeddedmedia json without id: " << json);
                 }
             }
         }
@@ -2472,24 +2473,28 @@ bool ClientSession::handleKitToClientMessage(const std::shared_ptr<Message>& pay
         }
         else if (tokens.equals(0, "loaded:"))
         {
-            setState(ClientSession::SessionState::LIVE);
-
-            if (firstLine.find("isfirst=true") != std::string::npos)
+            // We expect to be in the Loading state, as set in
+            // DocumentBroker::addSessionInternal().
+            if (_state == ClientSession::SessionState::LOADING)
             {
-                // The document has just loaded.
-                docBroker->setInteractive(false);
-                docBroker->setLoaded();
+                setState(ClientSession::SessionState::LIVE);
 
-                // Wopi post load actions.
-                if (_wopiFileInfo && !_wopiFileInfo->getTemplateSource().empty())
+                if (firstLine.find("isfirst=true") != std::string::npos)
                 {
-                    LOG_DBG("Uploading template [" << _wopiFileInfo->getTemplateSource()
-                                                   << "] to storage after loading.");
-                    docBroker->uploadAfterLoadingTemplate(client_from_this());
-                }
-            }
+                    // The document has just loaded.
+                    docBroker->setInteractive(false);
+                    docBroker->setLoaded();
 
-            docBroker->onViewLoaded(client_from_this());
+                    // Wopi post load actions.
+                    if (_wopiFileInfo && !_wopiFileInfo->getTemplateSource().empty())
+                    {
+                        LOG_DBG("Uploading template [" << _wopiFileInfo->getTemplateSource()
+                                                       << "] to storage after loading.");
+                        docBroker->uploadAfterLoadingTemplate(client_from_this());
+                    }
+                }
+
+                docBroker->onViewLoaded(client_from_this());
 
 #if !MOBILEAPP
             Admin::instance().setViewLoadDuration(
@@ -2497,6 +2502,12 @@ bool ClientSession::handleKitToClientMessage(const std::shared_ptr<Message>& pay
                 std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::steady_clock::now() - _viewLoadStart));
 #endif
+            }
+            else
+            {
+                LOG_WRN("Document loaded while we are not loading. Likely the client gave up and "
+                        "abandoned the document");
+            }
         }
         else if (tokens.equals(0, "status:"))
         {
@@ -3001,9 +3012,12 @@ void ClientSession::dumpState(std::ostream& os)
 
     if (_protocol)
     {
-        uint64_t sent = 0, recv = 0;
+        uint64_t sent = 0;
+        uint64_t recv = 0;
         _protocol->getIOStats(sent, recv);
-        os << "\n\t\tsent/keystroke: " << (double)sent/_keyEvents << " bytes";
+        os << "\n\t\tsent: " << sent / 1024 << " Kbytes";
+        os << "\n\t\trecv: " << recv / 1024 << " Kbytes";
+        os << "\n\t\tsent/keystroke: " << sent / 1024. / _keyEvents << " Kbytes";
     }
 
     os << "\n\t\tonFlyUpperLimit: " << getTilesOnFlyUpperLimit();
