@@ -227,9 +227,9 @@ public:
 
 private:
     std::atomic_bool _saveCompleted; ///< Defend against spurious wakes.
-    std::thread _watchdogThread;
     std::condition_variable _watchdogCV;
     std::mutex _watchdogMutex;
+    std::thread _watchdogThread;
 };
 
 static std::unique_ptr<BackgroundSaveWatchdog> BgSaveWatchdog;
@@ -1427,7 +1427,8 @@ bool Document::forkToSave(const std::function<void()> &childSave, int viewId)
         return false;
     }
 
-    if (!joinThreads())
+    ThreadDropper threadGuard;
+    if (!threadGuard.dropThreads(this))
     {
         LOG_WRN("Failed to join threads before async save");
         return false;
@@ -1505,6 +1506,8 @@ bool Document::forkToSave(const std::function<void()> &childSave, int viewId)
         SigUtil::addActivity("forked background save process: " +
                              std::to_string(pid));
 
+        threadGuard.clear();
+
         SigUtil::dieOnParentDeath();
 
         childSocket.reset();
@@ -1573,7 +1576,8 @@ bool Document::forkToSave(const std::function<void()> &childSave, int viewId)
 
         getLOKit()->setForkedChild(false);
 
-        startThreads();
+        // now, rather than waiting for the destructor
+        threadGuard.startThreads();
 
         // What better time than to reap while saving?
         reapZombieChildren();
@@ -3082,8 +3086,7 @@ bool anyInputCallback(void* data, int mostUrgentPriority)
 
     if (document)
     {
-        static bool considerPriority = std::getenv("COOL_ANYINPUT_CONSIDER_PRIORITY");
-        if (considerPriority && document->isLoaded())
+        if (document->isLoaded())
         {
             // Check if core has high-priority tasks in which case we don't interrupt.
             std::shared_ptr<lok::Document> kitDocument = document->getLOKitDocument();

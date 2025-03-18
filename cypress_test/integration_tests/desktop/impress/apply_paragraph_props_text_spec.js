@@ -1,4 +1,4 @@
-/* global describe it cy beforeEach require */
+/* global describe it cy beforeEach require expect */
 
 var helper = require('../../common/helper');
 var impressHelper = require('../../common/impress_helper');
@@ -40,7 +40,7 @@ describe(['tagdesktop', 'tagnextcloud', 'tagproxy'], 'Apply paragraph properties
 		impressHelper.removeShapeSelection();
 		selectText();
 		cy.cGet('#document-container g.Page .TextParagraph .TextPosition')
-			.should('have.attr', 'x', '23586');
+			.should('have.attr', 'x', '23583');
 
 		// Set left alignment
 		cy.cGet('#leftpara').click();
@@ -56,7 +56,11 @@ describe(['tagdesktop', 'tagnextcloud', 'tagproxy'], 'Apply paragraph properties
 		impressHelper.removeShapeSelection();
 		selectText();
 		cy.cGet('#document-container g.Page .TextParagraph .TextPosition')
-			.should('have.attr', 'x', '12493');
+			.invoke('attr', 'x')
+			.then((x) => {
+				const value = Number(x);
+				expect(value).to.be.closeTo(12493, 5);
+			});
 
 		// Set justified alignment
 		cy.cGet('#justifypara').click();

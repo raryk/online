@@ -75,31 +75,31 @@ ClientSession::ClientSession(
     const std::shared_ptr<DocumentBroker>& docBroker,
     const Poco::URI& uriPublic,
     const bool readOnly,
-    const RequestDetails &requestDetails) :
-    Session(ws, "ToClient-" + id, id, readOnly),
-    _docBroker(docBroker),
-    _uriPublic(uriPublic),
-    _auth(Authorization::create(uriPublic)),
-    _isDocumentOwner(false),
-    _state(SessionState::DETACHED),
-    _lastStateTime(std::chrono::steady_clock::now()),
-    _keyEvents(1),
-    _clientVisibleArea(0, 0, 0, 0),
-    _splitX(0),
-    _splitY(0),
-    _clientSelectedPart(-1),
-    _clientSelectedMode(0),
-    _tileWidthPixel(0),
-    _tileHeightPixel(0),
-    _tileWidthTwips(0),
-    _tileHeightTwips(0),
-    _kitViewId(-1),
-    _serverURL(requestDetails),
-    _isTextDocument(false),
-    _thumbnailSession(false),
-    _canonicalViewId(CanonicalViewId::None),
-    _sentAudit(false),
-    _sentBrowserSetting(false)
+    const RequestDetails &requestDetails)
+        : Session(ws, "ToClient-" + id, id, readOnly)
+        , _uriPublic(uriPublic)
+        , _serverURL(requestDetails)
+        , _auth(Authorization::create(uriPublic))
+        , _docBroker(docBroker)
+        , _lastStateTime(std::chrono::steady_clock::now())
+        , _clientVisibleArea(0, 0, 0, 0)
+        , _keyEvents(1)
+        , _splitX(0)
+        , _splitY(0)
+        , _clientSelectedPart(-1)
+        , _clientSelectedMode(0)
+        , _tileWidthPixel(0)
+        , _tileHeightPixel(0)
+        , _tileWidthTwips(0)
+        , _tileHeightTwips(0)
+        , _kitViewId(-1)
+        , _canonicalViewId(CanonicalViewId::None)
+        , _state(SessionState::DETACHED)
+        , _isDocumentOwner(false)
+        , _isTextDocument(false)
+        , _thumbnailSession(false)
+        , _sentAudit(false)
+        , _sentBrowserSetting(false)
 {
     const std::size_t curConnections = ++COOLWSD::NumConnections;
     LOG_INF("ClientSession ctor [" << getName() << "] for URI: [" << _uriPublic.toString()
@@ -1367,7 +1367,17 @@ bool ClientSession::_handleInput(const char *buffer, int length)
         {
             std::string json;
             getTokenString(tokens[2], "json", json);
-            COOLWSD::syncUsersBrowserSettings(getUserId(), json);
+            updateBrowserSettingsJSON(json);
+            COOLWSD::syncUsersBrowserSettings(getUserId(), docBroker->getPid(), json);
+            try
+            {
+                uploadBrowserSettingsToWopiHost();
+            }
+            catch (const std::exception& exc)
+            {
+                LOG_WRN("Failed to upload browsersetting json for session ["
+                        << getId() << ']');
+            }
         }
     }
 #endif
@@ -1381,6 +1391,47 @@ bool ClientSession::_handleInput(const char *buffer, int length)
 }
 
 #if !MOBILEAPP
+void ClientSession::uploadBrowserSettingsToWopiHost()
+{
+    const Authorization& auth = getAuthorization();
+    Poco::URI uriObject = DocumentBroker::getPresetUploadBaseUrl(_uriPublic);
+
+    const std::string& filePath = "/settings/userconfig/browsersetting/browsersetting.json";
+    uriObject.addQueryParameter("fileId", filePath);
+    auth.authorizeURI(uriObject);
+
+    const std::string& uriAnonym = COOLWSD::anonymizeUrl(uriObject.toString());
+
+    auto httpRequest = StorageConnectionManager::createHttpRequest(uriObject, auth);
+    httpRequest.setVerb(http::Request::VERB_POST);
+    auto httpSession = StorageConnectionManager::getHttpSession(uriObject);
+
+    std::ostringstream jsonStream;
+    _browserSettingsJSON->stringify(jsonStream, 2);
+    httpRequest.setBody(jsonStream.str(), "application/json; charset=utf-8");
+
+    http::Session::FinishedCallback finishedCallback =
+        [this, uriAnonym](const std::shared_ptr<http::Session>& wopiSession)
+    {
+        wopiSession->asyncShutdown();
+
+        const std::shared_ptr<const http::Response> httpResponse = wopiSession->response();
+        const http::StatusLine statusLine = httpResponse->statusLine();
+        if (statusLine.statusCode() != http::StatusCode::OK)
+        {
+            LOG_ERR("Failed to upload updated browsersetting to wopiHost["
+                    << uriAnonym << "] with status[" << statusLine.reasonPhrase() << ']');
+            return;
+        }
+        LOG_TRC("Successfully uploaded browsersetting to wopiHost");
+    };
+
+    LOG_DBG("Uploading browsersetting json [" << jsonStream.str() << "] to wopiHost[" << uriAnonym
+                                              << ']');
+    httpSession->setFinishedHandler(std::move(finishedCallback));
+    httpSession->asyncRequest(httpRequest, *COOLWSD::getWebServerPoll());
+}
+
 void ClientSession::updateBrowserSettingsJSON(const std::string& json)
 {
     Poco::JSON::Parser parser;
