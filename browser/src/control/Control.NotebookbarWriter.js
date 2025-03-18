@@ -430,18 +430,7 @@ L.Control.NotebookbarWriter = L.Control.Notebookbar.extend({
 							'command': 'serveraudit',
 							'accessibility': { focusBack: false, combination: 'SA', de: null }
 						} : {},
-					{
-						'type': 'toolbox',
-						'children': [
-							{
-								'id': 'report-an-issue',
-								'type': 'bigtoolitem',
-								'text': _('Report an issue'),
-								'command': '.uno:ReportIssue',
-								'accessibility': { focusBack: true, combination: 'K', de: null }
-							}
-						]
-					},
+					{},
 					hasLatestUpdates ?
 						{
 							'type': 'toolbox',
